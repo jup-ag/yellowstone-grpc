@@ -316,7 +316,7 @@ pub mod convert_from {
             parent_slot: block.parent_slot,
             transactions,
             rewards,
-            num_partitions: block_rewards.num_partitions.map(|msg| msg.num_partitions),
+            // num_partitions: block_rewards.num_partitions.map(|msg| msg.num_partitions),
             block_time: Some(ensure_some(
                 block.block_time.map(|wrapper| wrapper.timestamp),
                 "failed to get block_time",
