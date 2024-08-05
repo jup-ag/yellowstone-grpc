@@ -18,7 +18,7 @@ use {
         sync::Arc,
         time::{Duration, Instant, SystemTime, UNIX_EPOCH},
     },
-    tokio::{fs, sync::Mutex},
+    tokio::{fs, sync::Mutex, time::interval},
     tonic::transport::{channel::ClientTlsConfig, Certificate},
     yellowstone_grpc_client::{GeyserGrpcClient, GeyserGrpcClientError, Interceptor},
     yellowstone_grpc_proto::{
@@ -664,7 +664,7 @@ async fn geyser_health_watch(mut client: GeyserGrpcClient<impl Interceptor>) -> 
 }
 
 async fn geyser_subscribe(
-    mut client: GeyserGrpcClient<impl Interceptor>,
+    mut client: GeyserGrpcClient<impl Interceptor + 'static>,
     request: SubscribeRequest,
     resub: usize,
     stats: bool,
@@ -692,10 +692,27 @@ async fn geyser_subscribe(
     let mut pb_verify_c = verify_encoding.then_some((0, 0));
     let pb_verify = crate_progress_bar(&pb_multi, ProgressBarTpl::Verify)?;
 
+    let request_cloned = request.clone();
     let (mut subscribe_tx, mut stream) = client.subscribe_with_request(Some(request)).await?;
 
     info!("stream opened");
     let mut counter = 0;
+
+    tokio::spawn(async move {
+        let mut interval = interval(Duration::from_millis(200));
+
+        loop {
+            interval.tick().await;
+
+            log::info!("Subscribe again...");
+            subscribe_tx
+                .send(request_cloned.clone())
+                .await
+                .map_err(GeyserGrpcClientError::SubscribeSendError)
+                .unwrap();
+        }
+    });
+
     while let Some(message) = stream.next().await {
         match message {
             Ok(msg) => {
@@ -878,12 +895,12 @@ async fn geyser_subscribe(
                     Some(UpdateOneof::Ping(_)) => {
                         // This is necessary to keep load balancers that expect client pings alive. If your load balancer doesn't
                         // require periodic client pings then this is unnecessary
-                        subscribe_tx
-                            .send(SubscribeRequest {
-                                ping: Some(SubscribeRequestPing { id: 1 }),
-                                ..Default::default()
-                            })
-                            .await?;
+                        // subscribe_tx
+                        //     .send(SubscribeRequest {
+                        //         ping: Some(SubscribeRequestPing { id: 1 }),
+                        //         ..Default::default()
+                        //     })
+                        //     .await?;
                     }
                     Some(UpdateOneof::Pong(_)) => {}
                     None => {
@@ -904,22 +921,22 @@ async fn geyser_subscribe(
             let mut new_slots: SlotsFilterMap = HashMap::new();
             new_slots.insert("client".to_owned(), SubscribeRequestFilterSlots::default());
 
-            subscribe_tx
-                .send(SubscribeRequest {
-                    slots: new_slots.clone(),
-                    accounts: HashMap::default(),
-                    transactions: HashMap::default(),
-                    transactions_status: HashMap::default(),
-                    entry: HashMap::default(),
-                    blocks: HashMap::default(),
-                    blocks_meta: HashMap::default(),
-                    commitment: None,
-                    accounts_data_slice: Vec::default(),
-                    ping: None,
-                    from_slot: None,
-                })
-                .await
-                .map_err(GeyserGrpcClientError::SubscribeSendError)?;
+            // subscribe_tx
+            //     .send(SubscribeRequest {
+            //         slots: new_slots.clone(),
+            //         accounts: HashMap::default(),
+            //         transactions: HashMap::default(),
+            //         transactions_status: HashMap::default(),
+            //         entry: HashMap::default(),
+            //         blocks: HashMap::default(),
+            //         blocks_meta: HashMap::default(),
+            //         commitment: None,
+            //         accounts_data_slice: Vec::default(),
+            //         ping: None,
+            //         from_slot: None,
+            //     })
+            //     .await
+            //     .map_err(GeyserGrpcClientError::SubscribeSendError)?;
         }
     }
     info!("stream closed");
