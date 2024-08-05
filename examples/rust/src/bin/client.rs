@@ -6,7 +6,7 @@ use {
     solana_sdk::{pubkey::Pubkey, signature::Signature, transaction::TransactionError},
     solana_transaction_status::{EncodedTransactionWithStatusMeta, UiTransactionEncoding},
     std::{collections::HashMap, env, fmt, fs::File, sync::Arc, time::Duration},
-    tokio::sync::Mutex,
+    tokio::{sync::Mutex, time::Instant},
     yellowstone_grpc_client::{GeyserGrpcClient, GeyserGrpcClientError, Interceptor},
     yellowstone_grpc_proto::prelude::{
         subscribe_request_filter_accounts_filter::Filter as AccountsFilterDataOneof,
@@ -601,11 +601,21 @@ async fn geyser_subscribe(
     request: SubscribeRequest,
     resub: usize,
 ) -> anyhow::Result<()> {
-    let (mut subscribe_tx, mut stream) = client.subscribe_with_request(Some(request)).await?;
+    let (mut subscribe_tx, mut stream) =
+        client.subscribe_with_request(Some(request.clone())).await?;
+    let mut instant = Instant::now();
 
     info!("stream opened");
     let mut counter = 0;
     while let Some(message) = stream.next().await {
+        if instant.elapsed() > Duration::from_millis(500) {
+            instant = Instant::now();
+            log::info!("Subscribe again...");
+            subscribe_tx
+                .send(request.clone())
+                .await
+                .map_err(GeyserGrpcClientError::SubscribeSendError)?;
+        }
         match message {
             Ok(msg) => {
                 match msg.update_oneof {
