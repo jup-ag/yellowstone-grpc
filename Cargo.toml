@@ -21,7 +21,7 @@ publish = false
 
 [workspace.dependencies]
 affinity = "0.1.2"
-agave-geyser-plugin-interface = ">=2.2"
+agave-geyser-plugin-interface = "=2.2.19"
 anyhow = "1.0.62"
 backoff = "0.4.0"
 base64 = "0.22.1"
@@ -69,7 +69,7 @@ solana-storage-proto = ">=2.2"
 solana-transaction = "2.2"
 solana-transaction-context = ">=2.2"
 solana-transaction-error = "2.2"
-solana-transaction-status = ">=2.2"
+solana-transaction-status = "=2.2.19"
 smallvec = "1.13.2"
 spl-token-2022 = "8.0.0"
 thiserror = "1.0.63"
